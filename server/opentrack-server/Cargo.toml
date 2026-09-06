@@ -1,0 +1,15 @@
+[package]
+name = "opentrack-server"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = "0.8.9"
+id3 = "1.17.1"
+mp3-duration = "0.1.10"
+serde = "1.0.229"
+serde_json = "1.0.151"
+tokio = "1.53.1"
+tower-http = "0.7.1"
+uuid = "1.26.0"
+walkdir = "2.5.0"
