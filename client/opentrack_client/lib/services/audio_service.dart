@@ -10,9 +10,15 @@ class AudioPlayerService {
   Stream<PlayerState> get playerStateStream => _player.playerStateStream;
 
   Future<void> playTrack(String trackId) async {
-    final url = _api.streamUrl(trackId);
-    await _player.setUrl(url);
-    await _player.play();
+    try {
+      await _player.stop();
+      final url = _api.streamUrl(trackId);
+      await _player.setUrl(url);
+      await _player.play();
+    } catch (e, st) {
+      print('playTrack func didnt work on $trackId: $e\n$st');
+      rethrow;
+    }
   }
 
   Future<void> pause() async => _player.pause();
