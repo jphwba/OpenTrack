@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-
+import 'models/track.dart';
+import 'services/api_service.dart';
+import 'services/audio_service.dart';
 void main() {
   runApp(const MyApp());
 }
@@ -11,8 +13,8 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
+      title: 'OpenTrack',
+      theme: ThemeData(useMaterial3: true,
         // This is the theme of your application.
         //
         // TRY THIS: Try running your application with "flutter run". You'll see
@@ -28,15 +30,15 @@ class MyApp extends StatelessWidget {
         //
         // This works for code too, not just values: Most code changes can be
         // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+        colorSchemeSeed: Colors.deepPurple),
+
+      home: const MyHomePage(),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+  const MyHomePage({super.key});
 
   // This widget is the home page of your application. It is stateful, meaning
   // that it has a State object (defined below) that contains fields that affect
@@ -47,75 +49,114 @@ class MyHomePage extends StatefulWidget {
   // used by the build method of the State. Fields in a Widget subclass are
   // always marked "final".
 
-  final String title;
 
   @override
   State<MyHomePage> createState() => _MyHomePageState();
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+  final ApiService _api = ApiService();
+  final AudioPlayerService _audio = AudioPlayerService();
+  late Future<List<Track>> _tracksFuture;
+  Track? _currentTrack;
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+  @override
+  void initState() {
+    super.initState();
+    _tracksFuture = _api.fetchTracks();
+  }
+
+  @override
+  void dispose() {
+    _audio.dispose();
+    super.dispose();
+  }
+
+  void _playTrack(Track track) {
+    setState(() => _currentTrack = track);
+    _audio.playTrack(track.id);
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+      appBar: AppBar(title: const Text ('OpenTrack')),
+      body: Column(
+        children: [
+          Expanded(
+            child: FutureBuilder<List<Track>>(
+              future: _tracksFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
+                final tracks = snapshot.data ?? [];
+                if (tracks.isEmpty) {
+                  return const Center(child: Text('no tracks'));
+                }
+                return ListView.builder(
+                  itemCount: tracks.length,
+                  itemBuilder: (context, index) {
+                    final track = tracks[index];
+                    return ListTile(
+                      title: Text(track.title),
+                      subtitle: Text('${track.artist} - ${track.album}'),
+                      onTap: () => _playTrack(track),
+                    );
+                  },
+                );
+              }
+
+            ),),
+            if (_currentTrack != null) _PlayerBar(track: _currentTrack!, audio: _audio),
+        ],
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
+      );
+
+  }
+}
+
+class _PlayerBar extends StatelessWidget {
+  final Track track;
+  final AudioPlayerService audio;
+
+  const _PlayerBar({required this.track, required this.audio});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12), // Check if need to adjust
+      color: Theme.of(context).colorScheme.surfaceContainerHigh,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('${track.title} - ${track.artist}', style: const TextStyle(fontWeight: FontWeight.bold)),
+          StreamBuilder<Duration?>(stream: audio.durationStream, builder: (context, durationSnapshot) {
+            final duration = durationSnapshot.data ?? Duration.zero;
+            return StreamBuilder<Duration>(stream: audio.positionStream, builder: (context, positionSnapshot) {
+              final position = positionSnapshot.data ?? Duration.zero;
+              final maxMs = duration.inMilliseconds > 0 ? duration.inMilliseconds.toDouble() : 1.0;
+              final clampedMs = position.inMilliseconds.toDouble().clamp(0.0, maxMs);
+              return Slider(
+                value: clampedMs, max: maxMs, onChanged: (value) => audio.seek(Duration(milliseconds: value.toInt())),
+              );
+            },);
+          },),
+          StreamBuilder<PlayerState>(
+            stream: audio.playerStateStream,
+            builder: (context, snapshot) {
+              final playing = snapshot.data?.playing ?? false;
+              return IconButton(
+                iconSize: 36,
+                icon: Icon(playing ? Icons.pause_circle_filled : Icons.play_circle_filled),
+                onPressed: () => playing ? audio.pause() : audio.resume(),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
