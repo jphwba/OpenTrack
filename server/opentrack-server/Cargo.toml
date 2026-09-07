@@ -7,9 +7,10 @@ edition = "2024"
 axum = "0.8.9"
 id3 = "1.17.1"
 mp3-duration = "0.1.10"
-serde = "1.0.229"
+serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
-tokio = "1.53.1"
-tower-http = "0.7.1"
-uuid = "1.26.0"
+tokio = { version = "1.53.1", features = ["full"]}
+tokio-util = { version = "0.7.19", features = ["io"] }
+tower-http = { version = "0.7.1", features = ["cors"] }
+uuid = { version = "1.26.0", features = ["v4"] }
 walkdir = "2.5.0"

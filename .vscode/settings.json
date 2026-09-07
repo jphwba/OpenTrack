@@ -1,0 +1,5 @@
+{
+  "rust-analyzer.linkedProjects": [
+    "server/opentrack-server/Cargo.toml"
+  ]
+}
